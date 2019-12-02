@@ -1,0 +1,37 @@
+service: food-drive-bot
+app: food-drive
+org: jakepartusch
+
+provider:
+  name: aws
+  runtime: nodejs10.x
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/opi-food-drive"
+
+functions:
+  fooddriveHandler:
+    handler: handler.fooddriveHandler
+    events:
+      - http:
+          path: /drive
+          method: post
+resources:
+  Resources:
+    FoodDriveTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        TableName: opi-food-drive
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
