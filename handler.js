@@ -8,7 +8,7 @@ const addItemsToTeam = async (team, items) => {
     .put({
       TableName: "opi-food-drive",
       Item: {
-        id: team,
+        ...team,
         items
       }
     })
@@ -24,8 +24,16 @@ const getTeam = async teamName => {
       }
     })
     .promise();
-  console.log(data);
   return data.Item;
+};
+
+const getAllTeams = async () => {
+  const data = await dynamoDb
+    .scan({
+      TableName: "opi-food-drive"
+    })
+    .promise();
+  return data.Items;
 };
 
 const sendErrorResponse = async url => {
@@ -38,6 +46,29 @@ const sendErrorResponse = async url => {
   };
 };
 
+const generateLeaderboard = async url => {
+  const teams = await getAllTeams();
+  teams.sort((a, b) => a.items < b.items);
+  const trophies = ["🥇", "🥈", "🥉"];
+  const teamText = teams.map(
+    (team, i) => `${trophies[i] || ""} ${team.name} - ${team.items}`
+  );
+  await axios.post(url, {
+    response_type: "in_channel",
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `Here's the current leaderboard! :tada: \n\n ${teamText.join(
+            "\n"
+          )}`
+        }
+      }
+    ]
+  });
+};
+
 module.exports.fooddriveHandler = async event => {
   console.log(JSON.stringify(event, null, 2));
   const parsed = queryString.parse(event.body);
@@ -46,20 +77,27 @@ module.exports.fooddriveHandler = async event => {
     const command = parsed.text;
     const commandRegex = /(\S+) (\d+) items to team (.+)/;
     const commandData = command.match(commandRegex);
-    console.log(commandData);
     if (!commandData) {
+      if (parsed.text.split(" ")[0] === "leaderboard") {
+        await generateLeaderboard(parsed.response_url);
+        return {
+          statusCode: 200
+        };
+      }
       console.error("Unable to add items to team", parsed);
       return sendErrorResponse(parsed.response_url);
     }
-    const items = Number(commandData[2]);
-    const teamName = commandData[3].toUpperCase();
-    const team = await getTeam(teamName);
-    const total = team.items + items;
-    await addItemsToTeam(teamName, total);
-    await axios.post(parsed.response_url, {
-      response_type: "in_channel",
-      text: `Thank you for the donation! Team ${commandData[3]} now has ${total} items!`
-    });
+    if (commandData[1] === "add") {
+      const items = Number(commandData[2]);
+      const teamName = commandData[3].toUpperCase();
+      const team = await getTeam(teamName);
+      const total = team.items + items;
+      await addItemsToTeam(team, total);
+      await axios.post(parsed.response_url, {
+        response_type: "in_channel",
+        text: `Thank you for the donation! Team ${commandData[3]} now has ${total} items!`
+      });
+    }
     return {
       statusCode: 200
     };
