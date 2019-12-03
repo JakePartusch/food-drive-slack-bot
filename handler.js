@@ -95,7 +95,7 @@ module.exports.fooddriveHandler = async event => {
       await addItemsToTeam(team, total);
       await axios.post(parsed.response_url, {
         response_type: "in_channel",
-        text: `Thank you for the donation! Team ${commandData[3]} now has ${total} items!`
+        text: `Thanks for the donation, @${parsed.user_name}! Team ${team.name} now has ${total} items!`
       });
     }
     return {
